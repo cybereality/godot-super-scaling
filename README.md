@@ -13,7 +13,7 @@ Please download the add-on via the official Godot AssetLib inside the Godot Edit
 ## CONFIGURATION
 
 * Add the `SuperScaling.tscn` scene to your main scene tree, it should be just below the root node.
-* Place your entire game world as a child of a new node (e.g. Spatial for 3D games or Node2D for 2D games).
+* Place your entire game world as a child of a new node under the root node (e.g. Spatial for 3D games or Node2D for 2D games).
 * In the `SuperScaling` inspector settings, link the `Game World` property to the node you created above.
 * Select `Enable on Play`, this will start the scaling add-on when you play the game (cannot be viewed in editor).
 * Set `Usage` to either `3D` or `2D` depending on your game type.
@@ -29,7 +29,7 @@ Please download the add-on via the official Godot AssetLib inside the Godot Edit
 * `Smoothness` controls the mix between the two scaling algorithms. `0.0` is more sharp and `1.0` is softer.
 * In general, values lower than `0.5` are better for upscaling and values above `0.5` better for downscaling.
 * However, this is an artistic choice and you should experiment to find the best value for your game.
-* In the project settings, for 3D games, the `Stretch Mode` should set to `disabled` and `Stretch Aspect` to `ignore`.
+* In the project settings, for 3D games, the `Stretch Mode` should be set to `disabled` and `Stretch Aspect` to `ignore`.
 * For 2D games, the best project settings are `2d` for `Stretch Mode` and `keep_height` for `Stretch Aspect`.
 * 2D HUD and UI elements will be shown above the scaled game and displayed at native resolution.
 * For 3D games, simply create a 2D node (such as Control) as a child of the root node and it will display properly.
