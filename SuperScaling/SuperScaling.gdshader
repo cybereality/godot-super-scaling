@@ -1,0 +1,185 @@
+// [Godot Super Scaling]
+// created by Andres Hernandez
+shader_type canvas_item;
+render_mode unshaded;
+
+// viewport to sample and its resolution
+uniform sampler2D viewport;
+uniform vec2 view_resolution;
+varying vec2 view_pixel_size;
+uniform float smoothness;
+
+// texture coords for directional sampling
+varying vec2 center_pixel;
+varying vec2 north_pixel;
+varying vec2 south_pixel;
+varying vec2 east_pixel;
+varying vec2 west_pixel;
+varying vec2 north_east_pixel;
+varying vec2 north_west_pixel;
+varying vec2 south_east_pixel;
+varying vec2 south_west_pixel;
+
+// offset coordinates used for super sampling
+const vec2 offset_uv = vec2(0.25, 0.75);
+
+// finds the absolute distance from two floats
+float float_diff(float float_a, float float_b) {
+	return abs(float_a - float_b);
+}
+
+// maximum difference for all 3 color channels
+float color_diff(vec4 color_a, vec4 color_b) {
+	float diff_r = float_diff(color_a.r, color_b.r);
+	float diff_g = float_diff(color_a.g, color_b.g);
+	float diff_b = float_diff(color_a.b, color_b.b);
+	return max(diff_r, max(diff_g, diff_b));
+}
+
+// simple average of two colors
+vec4 color_average(vec4 color_a, vec4 color_b) {
+	return (color_a + color_b) * 0.5;
+}
+
+// performs 9 samples in a grid and finds the optimum direction to average
+vec4 sample_pixels(vec2 pixel_a, vec2 pixel_b, vec2 pixel_c, vec2 pixel_d,
+		vec2 pixel_e, vec2 pixel_f, vec2 pixel_g, vec2 pixel_h) {
+			
+	// get the colors of all 9 pixels in the 3x3 grid
+	vec4 pixel_0 = textureLod(viewport, center_pixel, 0.0); // center pixel
+	vec4 pixel_1 = textureLod(viewport, pixel_a, 0.0); // north pixel
+	vec4 pixel_2 = textureLod(viewport, pixel_b, 0.0); // south pixel
+	vec4 pixel_3 = textureLod(viewport, pixel_c, 0.0); // east pixel
+	vec4 pixel_4 = textureLod(viewport, pixel_d, 0.0); // west pixel
+	vec4 pixel_5 = textureLod(viewport, pixel_e, 0.0); // north-east pixel
+	vec4 pixel_6 = textureLod(viewport, pixel_f, 0.0); // north-west pixel
+	vec4 pixel_7 = textureLod(viewport, pixel_g, 0.0); // south-east pixel
+	vec4 pixel_8 = textureLod(viewport, pixel_h, 0.0); // south-west pixel
+	
+	// find the maximum color difference for each of 12 directions
+	float dir_1 = color_diff(pixel_0, pixel_1); // center to north
+	float dir_2 = color_diff(pixel_0, pixel_2); // center to south
+	float dir_3 = color_diff(pixel_0, pixel_3); // center to east
+	float dir_4 = color_diff(pixel_0, pixel_4); // center to west
+	float dir_5 = color_diff(pixel_0, pixel_5); // center to north-east
+	float dir_6 = color_diff(pixel_0, pixel_6); // center to north-west
+	float dir_7 = color_diff(pixel_0, pixel_7); // center to south-east
+	float dir_8 = color_diff(pixel_0, pixel_8); // center to south-west
+	float dir_9 = color_diff(pixel_1, pixel_4); // north to west
+	float dir_10 = color_diff(pixel_1, pixel_3); // north to east
+	float dir_11 = color_diff(pixel_2, pixel_3); // south to east
+	float dir_12 = color_diff(pixel_2, pixel_4); // south to west
+	
+	// find the minimum distance of each of the 12 directions
+	float min_dist = dir_1;
+	min_dist = min(min_dist, dir_2);
+	min_dist = min(min_dist, dir_3);
+	min_dist = min(min_dist, dir_4);
+	min_dist = min(min_dist, dir_5);
+	min_dist = min(min_dist, dir_6);
+	min_dist = min(min_dist, dir_7);
+	min_dist = min(min_dist, dir_8);
+	min_dist = min(min_dist, dir_9);
+	min_dist = min(min_dist, dir_10);
+	min_dist = min(min_dist, dir_11);
+	min_dist = min(min_dist, dir_12);
+	
+	// get the average color along the minimum direction
+	vec4 result = pixel_0;
+	if (min_dist == dir_1)
+		result = color_average(pixel_0, pixel_1); // center to north
+	else if (min_dist == dir_2) 
+		result = color_average(pixel_0, pixel_2); // center to south
+	else if (min_dist == dir_3) 
+		result = color_average(pixel_0, pixel_3); // center to east
+	else if (min_dist == dir_4) 
+		result = color_average(pixel_0, pixel_4); // center to west
+	else if (min_dist == dir_5) 
+		result = color_average(pixel_0, pixel_5); // center to north-east
+	else if (min_dist == dir_6) 
+		result = color_average(pixel_0, pixel_6); // center to north-west
+	else if (min_dist == dir_7) 
+		result = color_average(pixel_0, pixel_7); // center to south-east
+	else if (min_dist == dir_8) 
+		result = color_average(pixel_0, pixel_8); // center to south-west
+	else if (min_dist == dir_9) 
+		result = color_average(pixel_0, color_average(pixel_1, pixel_4)); // north to west
+	else if (min_dist == dir_10) 
+		result = color_average(pixel_0, color_average(pixel_1, pixel_3)); // north to east
+	else if (min_dist == dir_11) 
+		result = color_average(pixel_0, color_average(pixel_2, pixel_3)); // south to east
+	else if (min_dist == dir_12) 
+		result = color_average(pixel_0, color_average(pixel_2, pixel_4)); // south to west
+	return result;
+}
+
+// average the center sampled pixel with the optimum direction
+vec4 directional_average() {
+	vec4 sample = sample_pixels(north_pixel, south_pixel, east_pixel, west_pixel,
+		north_east_pixel, north_west_pixel, south_east_pixel, south_west_pixel);
+	return sample;
+}
+
+vec2 deriv_x(vec2 pos, vec4 frag, vec2 pixel) {
+	vec2 offset = vec2(pixel.x, 0.0);
+	vec2 pos_plus = pos + offset;
+	vec2 pos_minus = pos - offset;
+	int coord = int(frag.x) / 2;
+	bool even = int(coord * 2) == int(frag.x);
+	return even ? (pos_plus - pos) : (pos - pos_minus);
+}
+
+vec2 deriv_y(vec2 pos, vec4 frag, vec2 pixel) {
+	vec2 offset = vec2(0.0, pixel.y);
+	vec2 pos_plus = pos + offset;
+	vec2 pos_minus = pos - offset;
+	int coord = int(frag.y) / 2;
+	bool even = int(coord * 2) == int(frag.y);
+	return even ? (pos_plus - pos) : (pos - pos_minus);
+}
+
+vec4 super_sample(vec2 base_uv, vec4 frag, vec2 pixel) {
+	vec2 dx = deriv_x(base_uv, frag, pixel);
+	vec2 dy = deriv_y(base_uv, frag, pixel);
+	vec2 uv = vec2(0.0);
+	vec4 color = vec4(0.0);
+	uv = base_uv + offset_uv.x * dx + offset_uv.y * dy;
+	color += textureLod(viewport, uv, 0.0);
+	uv = base_uv - offset_uv.x * dx - offset_uv.y * dy;
+	color += textureLod(viewport, uv, 0.0);
+	uv = base_uv + offset_uv.y * dx - offset_uv.x * dy;
+	color += textureLod(viewport, uv, 0.0);
+	uv = base_uv - offset_uv.y * dx + offset_uv.x * dy;
+	color += textureLod(viewport, uv, 0.0);
+	color *= 0.25;
+	return color;
+}
+
+// precompute the sample direction texture coordinates
+void vertex() {
+	view_pixel_size = 1.0 / view_resolution;
+	
+	vec2 north = vec2(0.0, view_pixel_size.y);
+	vec2 south = vec2(0.0, -view_pixel_size.y);
+	vec2 east = vec2(view_pixel_size.x, 0.0);
+	vec2 west = vec2(-view_pixel_size.x, 0.0);
+	
+	center_pixel = UV;
+	north_pixel = center_pixel + north;
+	south_pixel = center_pixel + south;
+	east_pixel = center_pixel + east;
+	west_pixel = center_pixel + west;
+	north_east_pixel = center_pixel + north + east;
+	north_west_pixel = center_pixel + north + west;
+	south_east_pixel = center_pixel + south + east;
+	south_west_pixel = center_pixel + south + west;
+}
+
+// draw the new color on the screen
+void fragment() {
+	vec4 dir_avg = directional_average();
+	vec4 super = super_sample(UV, FRAGCOORD, view_pixel_size);
+	vec4 result = super * smoothness + dir_avg * (1.0 - smoothness);
+	result.a = 1.0;
+	COLOR = result;
+}
