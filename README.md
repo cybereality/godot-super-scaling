@@ -10,6 +10,8 @@ Godot Super Scaling, a comprehensive post-processing effect for 3D and 2D Godot 
 
 Please download the add-on via the official Godot AssetLib inside the Godot Editor.
 
+For manual install, download the `SuperScaling` folder from this repository and copy it into your Godot project.
+
 ## CONFIGURATION
 
 * Add the `SuperScaling.tscn` scene to your main scene tree, it should be just below the root node.
