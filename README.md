@@ -36,6 +36,7 @@ For manual install, download the `SuperScaling` folder from this repository and 
 * 2D HUD and UI elements will be shown above the scaled game and displayed at native resolution.
 * For 3D games, simply create a 2D node (such as Control) as a child of the root node and it will display properly.
 * For 2D games, you will need to create a Node2D and place your UI elements inside that. Then set the `Z Index` to `1` or above.
+* Be sure that `Use VSync` is set to `On` in the project settings for the smoothest performance.
 * One thing to note, `SuperScaling` will take control of your game while enabled, and you will no longer be able to edit as you play.
 * It is recommended to leave `Enable on Play` off while developing, and only enable the add-on when you need to test the graphics or performance.
 
