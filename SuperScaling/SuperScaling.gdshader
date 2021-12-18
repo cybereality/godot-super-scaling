@@ -38,23 +38,21 @@ float color_diff(vec4 color_a, vec4 color_b) {
 
 // simple average of two colors
 vec4 color_average(vec4 color_a, vec4 color_b) {
-	return (color_a + color_b) * 0.5;
+	return mix(color_a, color_b, 0.5);
 }
 
-// performs 9 samples in a grid and finds the optimum direction to average
-vec4 sample_pixels(vec2 pixel_a, vec2 pixel_b, vec2 pixel_c, vec2 pixel_d,
-		vec2 pixel_e, vec2 pixel_f, vec2 pixel_g, vec2 pixel_h) {
-			
+// take 9 samples and perform a directional average
+vec4 directional_average() {
 	// get the colors of all 9 pixels in the 3x3 grid
 	vec4 pixel_0 = textureLod(viewport, center_pixel, 0.0); // center pixel
-	vec4 pixel_1 = textureLod(viewport, pixel_a, 0.0); // north pixel
-	vec4 pixel_2 = textureLod(viewport, pixel_b, 0.0); // south pixel
-	vec4 pixel_3 = textureLod(viewport, pixel_c, 0.0); // east pixel
-	vec4 pixel_4 = textureLod(viewport, pixel_d, 0.0); // west pixel
-	vec4 pixel_5 = textureLod(viewport, pixel_e, 0.0); // north-east pixel
-	vec4 pixel_6 = textureLod(viewport, pixel_f, 0.0); // north-west pixel
-	vec4 pixel_7 = textureLod(viewport, pixel_g, 0.0); // south-east pixel
-	vec4 pixel_8 = textureLod(viewport, pixel_h, 0.0); // south-west pixel
+	vec4 pixel_1 = textureLod(viewport, north_pixel, 0.0); // north pixel
+	vec4 pixel_2 = textureLod(viewport, south_pixel, 0.0); // south pixel
+	vec4 pixel_3 = textureLod(viewport, east_pixel, 0.0); // east pixel
+	vec4 pixel_4 = textureLod(viewport, west_pixel, 0.0); // west pixel
+	vec4 pixel_5 = textureLod(viewport, north_east_pixel, 0.0); // north-east pixel
+	vec4 pixel_6 = textureLod(viewport, north_west_pixel, 0.0); // north-west pixel
+	vec4 pixel_7 = textureLod(viewport, south_east_pixel, 0.0); // south-east pixel
+	vec4 pixel_8 = textureLod(viewport, south_west_pixel, 0.0); // south-west pixel
 	
 	// find the maximum color difference for each of 12 directions
 	float dir_1 = color_diff(pixel_0, pixel_1); // center to north
@@ -113,13 +111,7 @@ vec4 sample_pixels(vec2 pixel_a, vec2 pixel_b, vec2 pixel_c, vec2 pixel_d,
 	return result;
 }
 
-// average the center sampled pixel with the optimum direction
-vec4 directional_average() {
-	vec4 sample = sample_pixels(north_pixel, south_pixel, east_pixel, west_pixel,
-		north_east_pixel, north_west_pixel, south_east_pixel, south_west_pixel);
-	return sample;
-}
-
+// partial derivative on x-axis
 vec2 deriv_x(vec2 pos, vec4 frag, vec2 pixel) {
 	vec2 offset = vec2(pixel.x, 0.0);
 	vec2 pos_plus = pos + offset;
@@ -129,6 +121,7 @@ vec2 deriv_x(vec2 pos, vec4 frag, vec2 pixel) {
 	return even ? (pos_plus - pos) : (pos - pos_minus);
 }
 
+// partial derivative on y-axis
 vec2 deriv_y(vec2 pos, vec4 frag, vec2 pixel) {
 	vec2 offset = vec2(0.0, pixel.y);
 	vec2 pos_plus = pos + offset;
@@ -138,6 +131,7 @@ vec2 deriv_y(vec2 pos, vec4 frag, vec2 pixel) {
 	return even ? (pos_plus - pos) : (pos - pos_minus);
 }
 
+// take 4 samples in a rotated grid for super sampling
 vec4 super_sample(vec2 base_uv, vec4 frag, vec2 pixel) {
 	vec2 dx = deriv_x(base_uv, frag, pixel);
 	vec2 dy = deriv_y(base_uv, frag, pixel);
