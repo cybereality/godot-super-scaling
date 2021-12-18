@@ -179,7 +179,7 @@ void vertex() {
 void fragment() {
 	vec4 dir_avg = directional_average();
 	vec4 super = super_sample(UV, FRAGCOORD, view_pixel_size);
-	vec4 result = super * smoothness + dir_avg * (1.0 - smoothness);
+	vec4 result = mix(dir_avg, super, smoothness);
 	result.a = 1.0;
 	COLOR = result;
 }
