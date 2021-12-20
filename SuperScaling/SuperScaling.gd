@@ -37,15 +37,17 @@ func _ready():
 			original_resolution = native_resolution
 			original_aspect_ratio = native_aspect_ratio
 			root_viewport = get_viewport()
+			#warning-ignore:RETURN_VALUE_DISCARDED
 			viewport.connect("size_changed", self, "on_window_resize")
+			#warning-ignore:RETURN_VALUE_DISCARDED
 			root_viewport.connect("size_changed", self, "on_window_resize")
 			on_window_resize()
 			create_sampler()
 			change_msaa(msaa)
 			change_fxaa(fxaa)
 			change_smoothness(smoothness)
-			set_process_input(true)
-			set_process_unhandled_input(true)
+			set_process_input(false)
+			set_process_unhandled_input(false)
 		else:
 			print("ERROR [Godot Super Scaling] Game World must be set in inspector.")
 	
@@ -76,6 +78,8 @@ func set_shader_texture():
 	view_texture.viewport_path = viewport.get_path()
 	sampler_material.set_shader_param("viewport", view_texture)
 	change_scale_factor(scale_factor)
+	set_process_input(true)
+	set_process_unhandled_input(true)
 	
 func set_shader_resolution():
 	if sampler_material:
@@ -235,6 +239,9 @@ func get_stretch_setting():
 	return ProjectSettings.get_setting("display/window/stretch/mode")
 	
 func _input(event):
-	if viewport:
+	if viewport and is_inside_tree():
 		viewport.input(event)
+		
+func _unhandled_input(event):
+	if viewport and is_inside_tree():
 		viewport.unhandled_input(event)
