@@ -1,4 +1,7 @@
-// [Godot Super Scaling]
+[gd_resource type="Shader" format=2]
+
+[resource]
+code = "// [Godot Super Scaling]
 // created by Andres Hernandez
 shader_type canvas_item;
 render_mode unshaded;
@@ -177,3 +180,4 @@ void fragment() {
 	result.a = 1.0;
 	COLOR = result;
 }
+"

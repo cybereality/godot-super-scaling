@@ -10,7 +10,7 @@ export (int, "3D", "2D") var usage = 0
 export (int, "Disabled", "2X", "4X", "8X", "16X") var msaa = 0 setget change_msaa
 export (bool) var fxaa = false setget change_fxaa
 export (int, 1, 4096) var shadow_atlas = 4096 setget change_shadow_atlas
-onready var sampler_shader = load(get_script().resource_path.get_base_dir() + "/SuperScaling.gdshader")
+onready var sampler_shader = load(get_script().resource_path.get_base_dir() + "/SuperScaling.tres")
 var sampler_material
 var game_node
 var overlay
