@@ -10,7 +10,6 @@ render_mode unshaded;
 uniform sampler2D viewport;
 uniform vec2 view_resolution;
 varying vec2 view_pixel_size;
-uniform float smoothness;
 
 // texture coords for directional sampling
 varying vec2 center_pixel;
@@ -22,9 +21,6 @@ varying vec2 north_east_pixel;
 varying vec2 north_west_pixel;
 varying vec2 south_east_pixel;
 varying vec2 south_west_pixel;
-
-// offset coordinates used for super sampling
-const vec2 offset_uv = vec2(0.25, 0.75);
 
 // finds the absolute distance from two floats
 float float_diff(float float_a, float float_b) {
@@ -114,44 +110,6 @@ vec4 directional_average() {
 	return result;
 }
 
-// partial derivative on x-axis
-vec2 deriv_x(vec2 pos, vec4 frag, vec2 pixel) {
-	vec2 offset = vec2(pixel.x, 0.0);
-	vec2 pos_plus = pos + offset;
-	vec2 pos_minus = pos - offset;
-	int coord = int(frag.x) / 2;
-	bool even = int(coord * 2) == int(frag.x);
-	return even ? (pos_plus - pos) : (pos - pos_minus);
-}
-
-// partial derivative on y-axis
-vec2 deriv_y(vec2 pos, vec4 frag, vec2 pixel) {
-	vec2 offset = vec2(0.0, pixel.y);
-	vec2 pos_plus = pos + offset;
-	vec2 pos_minus = pos - offset;
-	int coord = int(frag.y) / 2;
-	bool even = int(coord * 2) == int(frag.y);
-	return even ? (pos_plus - pos) : (pos - pos_minus);
-}
-
-// take 4 samples in a rotated grid for super sampling
-vec4 super_sample(vec2 base_uv, vec4 frag, vec2 pixel) {
-	vec2 dx = deriv_x(base_uv, frag, pixel);
-	vec2 dy = deriv_y(base_uv, frag, pixel);
-	vec2 uv = vec2(0.0);
-	vec4 color = vec4(0.0);
-	uv = base_uv + offset_uv.x * dx + offset_uv.y * dy;
-	color += textureLod(viewport, uv, 0.0);
-	uv = base_uv - offset_uv.x * dx - offset_uv.y * dy;
-	color += textureLod(viewport, uv, 0.0);
-	uv = base_uv + offset_uv.y * dx - offset_uv.x * dy;
-	color += textureLod(viewport, uv, 0.0);
-	uv = base_uv - offset_uv.y * dx + offset_uv.x * dy;
-	color += textureLod(viewport, uv, 0.0);
-	color *= 0.25;
-	return color;
-}
-
 // precompute the sample direction texture coordinates
 void vertex() {
 	view_pixel_size = 1.0 / view_resolution;
@@ -174,9 +132,7 @@ void vertex() {
 
 // draw the new color on the screen
 void fragment() {
-	vec4 dir_avg = directional_average();
-	vec4 super = super_sample(UV, FRAGCOORD, view_pixel_size);
-	vec4 result = mix(dir_avg, super, smoothness);
+	vec4 result = directional_average();
 	result.a = 1.0;
 	COLOR = result;
 }
