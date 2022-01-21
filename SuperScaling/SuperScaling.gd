@@ -3,21 +3,18 @@
 extends Node
 
 export (float, 0.1, 2.0) var scale_factor = 1.0 setget change_scale_factor
+export (float, 0.0, 1.0) var smoothness = 0.5 setget change_smoothness
 export (bool) var enable_on_play = false
 export (NodePath) var game_world
 export (int, "3D", "2D") var usage = 0
 export (int, "Disabled", "2X", "4X", "8X", "16X") var msaa = 0 setget change_msaa
 export (bool) var fxaa = false setget change_fxaa
 export (int, 1, 4096) var shadow_atlas = 4096 setget change_shadow_atlas
-onready var averaging_shader = load(get_script().resource_path.get_base_dir() + "/Averaging.tres")
-onready var super_shader = load(get_script().resource_path.get_base_dir() + "/Super.tres")
-var averaging_material
-var super_material
+onready var sampler_shader = load(get_script().resource_path.get_base_dir() + "/SuperScaling.tres")
+var sampler_material
 var game_node
-var averaging_overlay
-var super_overlay
+var overlay
 var viewport
-var super_viewport
 var viewport_size
 var root_viewport
 var native_resolution
@@ -33,14 +30,10 @@ func _ready():
 		if game_node:
 			get_parent().call_deferred("remove_child", game_node)
 			get_screen_size()
-			create_sampler()
-			create_super()
 			create_viewport()
-			create_super_viewport()
 			set_shader_texture()
 			viewport.call_deferred("add_child", game_node)
-			super_viewport.call_deferred("add_child", viewport)
-			get_parent().call_deferred("add_child", super_viewport)
+			get_parent().call_deferred("add_child", viewport)
 			original_resolution = native_resolution
 			original_aspect_ratio = native_aspect_ratio
 			root_viewport = get_viewport()
@@ -49,8 +42,10 @@ func _ready():
 			#warning-ignore:RETURN_VALUE_DISCARDED
 			root_viewport.connect("size_changed", self, "on_window_resize")
 			on_window_resize()
+			create_sampler()
 			change_msaa(msaa)
 			change_fxaa(fxaa)
+			change_smoothness(smoothness)
 			set_process_input(false)
 			set_process_unhandled_input(false)
 		else:
@@ -68,51 +63,27 @@ func create_viewport():
 	viewport.msaa = Viewport.MSAA_DISABLED
 	viewport.shadow_atlas_size = shadow_atlas
 	
-func create_super_viewport():
-	super_viewport = Viewport.new()
-	super_viewport.name = "SuperViewport"
-	super_viewport.size = native_resolution
-	super_viewport.usage = Viewport.USAGE_3D if usage == USAGE_3D else Viewport.USAGE_2D
-	super_viewport.render_target_clear_mode = Viewport.CLEAR_MODE_NEVER
-	super_viewport.render_target_update_mode = Viewport.UPDATE_ALWAYS
-	super_viewport.render_target_v_flip = true
-	super_viewport.size_override_stretch = true
-	super_viewport.msaa = Viewport.MSAA_DISABLED
-	super_viewport.shadow_atlas_size = shadow_atlas
-	
 func create_sampler():
-	averaging_overlay = ColorRect.new()
-	averaging_overlay.name = "AveragingOverlay"
-	averaging_material = ShaderMaterial.new()
-	averaging_material.shader = averaging_shader
-	averaging_overlay.material = averaging_material
-	averaging_overlay.visible = false
-	add_child(averaging_overlay)
-	
-func create_super():
-	super_overlay = ColorRect.new()
-	super_overlay.name = "SuperOverlay"
-	super_material = ShaderMaterial.new()
-	super_material.shader = super_shader
-	super_overlay.material = super_material
-	add_child(super_overlay)
+	overlay = ColorRect.new()
+	overlay.name = "SamplerOverlay"
+	sampler_material = ShaderMaterial.new()
+	sampler_material.shader = sampler_shader
+	overlay.material = sampler_material
+	add_child(overlay)
 
 func set_shader_texture():
 	yield(VisualServer, "frame_post_draw")
 	var view_texture = viewport.get_texture()
 	view_texture.flags = 0
 	view_texture.viewport_path = viewport.get_path()
-	averaging_material.set_shader_param("viewport", view_texture)
-	super_material.set_shader_param("viewport", view_texture)
+	sampler_material.set_shader_param("viewport", view_texture)
 	change_scale_factor(scale_factor)
 	set_process_input(true)
 	set_process_unhandled_input(true)
 	
 func set_shader_resolution():
-	if averaging_material:
-		averaging_material.set_shader_param("view_resolution", viewport_size)
-	if super_material:
-		super_material.set_shader_param("view_resolution", viewport_size)
+	if sampler_material:
+		sampler_material.set_shader_param("view_resolution", viewport_size)
 	
 func get_screen_size():
 	var window = OS.window_size
@@ -139,8 +110,6 @@ func set_viewport_size():
 func resize_viewport():
 	if viewport:
 		viewport.size = viewport_size
-	if super_viewport:
-		super_viewport.size = viewport_size
 			
 func scale_viewport_canvas():
 	if viewport:
@@ -163,27 +132,26 @@ func scale_viewport_canvas():
 					viewport.set_size_override(true, Vector2(round(original_resolution.x * aspect_diff), round(original_resolution.y)))
 				elif aspect_diff < 1.0 - epsilon:
 					viewport.set_size_override(true, Vector2(round(original_resolution.x), round(original_resolution.y / aspect_diff)))
-		super_viewport.set_size_override(true, viewport.size)
 			
 func set_sampler_size():
-	if averaging_overlay:
+	if overlay:
 		var stretch_setting = get_stretch_setting()
 		var aspect_setting = get_aspect_setting()
 		var aspect_diff = native_aspect_ratio / original_aspect_ratio
 		if usage == USAGE_2D:
 			if aspect_diff < 1.0 - epsilon and aspect_setting == "keep_width":
-				averaging_overlay.rect_size = Vector2(round(original_resolution.x), round(original_resolution.x / native_aspect_ratio))
+				overlay.rect_size = Vector2(round(original_resolution.x), round(original_resolution.x / native_aspect_ratio))
 			elif aspect_diff > 1.0 + epsilon and aspect_setting == "keep_height":
-				averaging_overlay.rect_size = Vector2(round(original_resolution.y * native_aspect_ratio), round(original_resolution.y))
+				overlay.rect_size = Vector2(round(original_resolution.y * native_aspect_ratio), round(original_resolution.y))
 			else:
-				averaging_overlay.rect_size = Vector2(round(original_resolution.x), round(original_resolution.y))
+				overlay.rect_size = Vector2(round(original_resolution.x), round(original_resolution.y))
 		elif usage == USAGE_3D:
-			averaging_overlay.rect_size = Vector2(round(native_resolution.x), round(native_resolution.y))
+			overlay.rect_size = Vector2(round(native_resolution.x), round(native_resolution.y))
 			if aspect_diff > 1.0 + epsilon:
-				averaging_overlay.rect_size.x = round(native_resolution.y * original_aspect_ratio)
+				overlay.rect_size.x = round(native_resolution.y * original_aspect_ratio)
 			elif aspect_diff < 1.0 - epsilon:
-				averaging_overlay.rect_size.y = round(native_resolution.x / original_aspect_ratio)
-		var overlay_size = averaging_overlay.rect_size
+				overlay.rect_size.y = round(native_resolution.x / original_aspect_ratio)
+		var overlay_size = overlay.rect_size
 		var screen_size = Vector2(0.0, 0.0)
 		if usage == USAGE_2D:
 			screen_size = original_resolution
@@ -191,54 +159,57 @@ func set_sampler_size():
 			screen_size = native_resolution
 		if stretch_setting == "disabled" or usage == USAGE_2D:
 			if aspect_setting == "keep":
-				averaging_overlay.rect_position.x = 0
-				averaging_overlay.rect_position.y = 0
+				overlay.rect_position.x = 0
+				overlay.rect_position.y = 0
 			elif aspect_setting == "keep_width" or aspect_setting == "keep_height":
-				averaging_overlay.rect_position.x = 0
-				averaging_overlay.rect_position.y = 0
+				overlay.rect_position.x = 0
+				overlay.rect_position.y = 0
 				if usage == USAGE_3D:
 					if aspect_diff > 1.0 + epsilon:
-						averaging_overlay.rect_position.x = round((screen_size.x * aspect_diff - overlay_size.x) * 0.5)
+						overlay.rect_position.x = round((screen_size.x * aspect_diff - overlay_size.x) * 0.5)
 					elif aspect_diff < 1.0 - epsilon:
-						averaging_overlay.rect_position.y = round((screen_size.y / aspect_diff - overlay_size.y) * 0.5)
+						overlay.rect_position.y = round((screen_size.y / aspect_diff - overlay_size.y) * 0.5)
 			elif aspect_setting == "expand":
 				if usage == USAGE_3D:
-					averaging_overlay.rect_size = screen_size
+					overlay.rect_size = screen_size
 				elif aspect_diff > 1.0 + epsilon:
-					averaging_overlay.rect_size = Vector2(round(screen_size.x * aspect_diff), round(screen_size.y))
+					overlay.rect_size = Vector2(round(screen_size.x * aspect_diff), round(screen_size.y))
 				elif aspect_diff < 1.0 - epsilon:
-					averaging_overlay.rect_size = Vector2(round(screen_size.x), round(screen_size.y / aspect_diff))
+					overlay.rect_size = Vector2(round(screen_size.x), round(screen_size.y / aspect_diff))
 				else:
-					averaging_overlay.rect_size = screen_size
+					overlay.rect_size = screen_size
 			elif aspect_setting == "ignore":
 				if usage == USAGE_3D:
-					averaging_overlay.rect_size = screen_size
+					overlay.rect_size = screen_size
 		elif stretch_setting == "viewport":
-			averaging_overlay.rect_size = native_resolution
+			overlay.rect_size = native_resolution
 		elif stretch_setting == "2d":
-			averaging_overlay.rect_size = original_resolution
-			overlay_size = averaging_overlay.rect_size
-			averaging_overlay.rect_position.x = 0
-			averaging_overlay.rect_position.y = 0
+			overlay.rect_size = original_resolution
+			overlay_size = overlay.rect_size
+			overlay.rect_position.x = 0
+			overlay.rect_position.y = 0
 			if aspect_setting == "expand":
 				if aspect_diff > 1.0 + epsilon:
-					averaging_overlay.rect_size = Vector2(round(original_resolution.y * native_aspect_ratio), round(original_resolution.y))
+					overlay.rect_size = Vector2(round(original_resolution.y * native_aspect_ratio), round(original_resolution.y))
 				elif aspect_diff < 1.0 - epsilon:
-					averaging_overlay.rect_size = Vector2(round(original_resolution.x), round(original_resolution.x / native_aspect_ratio))
+					overlay.rect_size = Vector2(round(original_resolution.x), round(original_resolution.x / native_aspect_ratio))
 			elif aspect_setting == "keep_width":
-				averaging_overlay.rect_position.x = 0.0
+				overlay.rect_position.x = 0.0
 				if aspect_diff < 1.0 - epsilon:
-					averaging_overlay.rect_position.y = round((overlay_size.y / aspect_diff - overlay_size.y) * 0.5)
+					overlay.rect_position.y = round((overlay_size.y / aspect_diff - overlay_size.y) * 0.5)
 			elif aspect_setting == "keep_height":
-				averaging_overlay.rect_position.y = 0.0
+				overlay.rect_position.y = 0.0
 				if aspect_diff > 1.0 + epsilon:
-					averaging_overlay.rect_position.x = round((overlay_size.x * aspect_diff - overlay_size.x) * 0.5)
-		super_overlay.rect_size = averaging_overlay.rect_size
-		super_overlay.rect_position = averaging_overlay.rect_position
+					overlay.rect_position.x = round((overlay_size.x * aspect_diff - overlay_size.x) * 0.5)
 				
 func change_scale_factor(val):
 	scale_factor = val
 	on_window_resize()
+	
+func change_smoothness(val):
+	smoothness = val
+	if sampler_material:
+		sampler_material.set_shader_param("smoothness", smoothness)
 		
 func change_msaa(val):
 	msaa = val
