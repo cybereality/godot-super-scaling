@@ -12,7 +12,7 @@ uniform vec2 view_resolution;
 varying vec2 view_pixel_size;
 
 // offset coordinates used for super sampling
-const vec2 offset_uv = vec2(0.28, 0.56);
+const vec2 offset_uv = vec2(0.24, 0.38);
 
 // partial derivative on x-axis
 vec2 deriv_x(vec2 pos, vec4 frag, vec2 pixel) {
