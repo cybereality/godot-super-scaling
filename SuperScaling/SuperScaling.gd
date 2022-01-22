@@ -5,14 +5,14 @@ extends Node
 export (float, 0.1, 2.0) var scale_factor = 1.0 setget change_scale_factor
 export (float, 0.0, 1.0) var smoothness = 0.5 setget change_smoothness
 export (bool) var enable_on_play = false
-export (NodePath) var game_world
+export (Array, NodePath) var ui_nodes
 export (int, "3D", "2D") var usage = 0
 export (int, "Disabled", "2X", "4X", "8X", "16X") var msaa = 0 setget change_msaa
 export (bool) var fxaa = false setget change_fxaa
 export (int, 1, 4096) var shadow_atlas = 4096 setget change_shadow_atlas
 onready var sampler_shader = load(get_script().resource_path.get_base_dir() + "/SuperScaling.tres")
 var sampler_material
-var game_node
+var game_nodes
 var overlay
 var viewport
 var viewport_size
@@ -23,33 +23,54 @@ var native_aspect_ratio
 var original_aspect_ratio
 enum {USAGE_3D, USAGE_2D}
 const epsilon = 0.01
+var finish_timer 
 
 func _ready():
 	if (enable_on_play):
-		game_node = get_node(game_world)
-		if game_node:
-			get_parent().call_deferred("remove_child", game_node)
-			get_screen_size()
-			create_viewport()
-			set_shader_texture()
-			viewport.call_deferred("add_child", game_node)
-			get_parent().call_deferred("add_child", viewport)
-			original_resolution = native_resolution
-			original_aspect_ratio = native_aspect_ratio
-			root_viewport = get_viewport()
-			#warning-ignore:RETURN_VALUE_DISCARDED
-			viewport.connect("size_changed", self, "on_window_resize")
-			#warning-ignore:RETURN_VALUE_DISCARDED
-			root_viewport.connect("size_changed", self, "on_window_resize")
-			on_window_resize()
-			create_sampler()
-			change_msaa(msaa)
-			change_fxaa(fxaa)
-			change_smoothness(smoothness)
-			set_process_input(false)
-			set_process_unhandled_input(false)
-		else:
-			print("ERROR [Godot Super Scaling] Game World must be set in inspector.")
+		finish_setup()
+	
+func finish_setup():
+	remove_all_nodes()
+	get_screen_size()
+	create_viewport()
+	set_shader_texture()
+	add_all_nodes()
+	get_parent().call_deferred("add_child", viewport)
+	original_resolution = native_resolution
+	original_aspect_ratio = native_aspect_ratio
+	root_viewport = get_viewport()
+	#warning-ignore:RETURN_VALUE_DISCARDED
+	viewport.connect("size_changed", self, "on_window_resize")
+	#warning-ignore:RETURN_VALUE_DISCARDED
+	root_viewport.connect("size_changed", self, "on_window_resize")
+	on_window_resize()
+	create_sampler()
+	change_msaa(msaa)
+	change_fxaa(fxaa)
+	change_smoothness(smoothness)
+	set_process_input(false)
+	set_process_unhandled_input(false)
+			
+func remove_all_nodes():
+	game_nodes = get_parent().get_children()
+	var ui_count = ui_nodes.size()
+	var done = false
+	while not done:
+		for i in range(game_nodes.size()):
+			if ui_nodes.has(get_path_to(game_nodes[i])):
+				game_nodes.remove(i)
+				break
+		ui_count -= 1
+		if ui_count <= 0:
+			done = true
+	game_nodes.erase(self)
+	for node in game_nodes:
+		if node != self:
+			get_parent().call_deferred("remove_child", node)
+	
+func add_all_nodes():
+	for node in game_nodes:
+		viewport.call_deferred("add_child", node)
 	
 func create_viewport():
 	viewport = Viewport.new()
@@ -69,6 +90,7 @@ func create_sampler():
 	sampler_material = ShaderMaterial.new()
 	sampler_material.shader = sampler_shader
 	overlay.material = sampler_material
+	overlay.mouse_filter = Control.MOUSE_FILTER_PASS
 	add_child(overlay)
 
 func set_shader_texture():
